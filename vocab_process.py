@@ -2,6 +2,7 @@ import codecs
 import json
 import numpy as np
 from pathlib import Path
+import random
 
 
 # BOW-dict
@@ -16,11 +17,11 @@ def vocab_dict(instances, dict_url):
         dictionary = dict()
         exist_vocab = set()
     # new vocab is the word that can't find out in the exist BOW-dict
-    new_vocab = exist_vocab ^ new_instances_vocab(instances)
+    new_vocab = new_instances_vocab(instances) - exist_vocab
     # update the BOW-dict
-    dictionary = combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow)
+    new_dictionary = combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow)
 
-    return dictionary, len(dictionary)
+    return new_dictionary, len(new_dictionary)
 
 def new_instances_vocab(instances):
     vocab = set()
@@ -40,10 +41,6 @@ def combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow):
 
 
 # sentence: character(char) to index(int)
-def sentence_word2ind(instances, dictionary):
-    sentence_ind = []
-    for instance in instances:
-        sentence = [dictionary[word] if word in dictionary else -1 for word in instance.split()]
-        sentence_ind.append(sentence)
-
-    return dict(enumerate(np.array(sentence_ind)))
+def sentence_loader(instances, dict):
+    sentence_ind = [[dict[word] for word in instance.split()] for instance in instances]
+    return np.array(sentence_ind)

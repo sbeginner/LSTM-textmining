@@ -23,16 +23,15 @@ class RNNAutoEcoder(nn.Module):
         )
 
     def forward(self, sentences):
-
         word_embeds = self.word_embeddings(sentences)
         x, (h_state, c_state) = self.lstm_encoder(word_embeds.view(-1, 1, 10))
-        x = self.decoder(x)
+        x = self.decoder(x.view(-1, 15))
         x = F.log_softmax(x)
 
         return x.view(-1, self.dic_vocab_num), h_state
 
     def categrate(self, h_state):
         input = h_state[:,-1,:]
-        output = self.targets(input.view(-1))
+        output = self.targets(input.view(-1, 15))
         output = F.log_softmax(output)
         return output
