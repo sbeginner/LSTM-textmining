@@ -7,6 +7,11 @@ import random
 import numpy as np
 import codecs
 import vocab_process
+import torch.utils.data as Data
+
+
+BATCH_SIZE = 16
+torch.manual_seed(1234)
 
 clean_data_url = 'dataset/clean_data_1.txt'
 target_data_url = 'dataset/targets_1.txt'
@@ -17,51 +22,41 @@ instances = load_clean_data.read().splitlines()
 targets = load_targets.read().splitlines()
 
 dictionary, dic_vocab_num = vocab_process.vocab_dict(instances, 'dict_BOW.json')
-inst = vocab_process.sentence_loader(instances, dictionary)
-
-train_inst_tmp = []
-for item in zip(inst, targets):
-    train_inst_tmp.append(item)
-random.shuffle(train_inst_tmp)
-train_inst = train_inst_tmp[:100]
-test_inst = train_inst_tmp[100:120]
+inst, inst_len = vocab_process.sentence_loader(instances, dictionary)
 
 RnnAE = RNNAutoEcoder(dic_vocab_num)
 RnnAE_optimizer = torch.optim.Adam(RnnAE.parameters(), lr=0.15)
 loss_func = nn.NLLLoss()
 
-for epoch in range(1000):
-    training_result = []
-    testing_result = []
-    for sentence in train_inst:
-        train_x = train_y = Variable(torch.from_numpy(np.array(sentence[0])).long())
-        class_t = Variable(torch.from_numpy(np.array([sentence[1]], dtype=np.float)).long())
 
-        output, h_state = RnnAE.forward(train_x.view(1, -1))
-        t_output = RnnAE.categrate(h_state)
+import rnn_data_batch as RNN_Data
+dataset = RNN_Data.Dataset(inst, inst_len, targets)
+dataloader = RNN_Data.DataLoader(dataset=dataset, batch_size=3, shuffle=True)
+
+for epoch in range(10):
+    training_result = []
+
+    for sentences, sentences_len, targets in dataloader:
+        x = y = Variable(sentences).long()
+        class_t = Variable(targets).long()
+
+        rnn_output, h_state = RnnAE.RNN_Encoder(x, sentences_len)
+        result = RnnAE.classifier(h_state.squeeze(0))
+        loss = loss_func(result, class_t)
+
+        print('pred_class', torch.max(result, 1)[1].cpu().view(-1).data.numpy())
+        print('real_class', class_t.data.numpy())
+
+        for i in range(len(rnn_output)):
+            out = RnnAE.Simple_NN_Decoder(rnn_output[i, :, :])
+            # print(out.size(), y[i][:out.size()[0]])
+            loss += loss_func(out, y[i][:out.size()[0]])
+            print('pred', torch.max(out, 1)[1].cpu().view(-1).data.numpy())
+            print('real', y[i].data.numpy())
+
+        print(loss)
+        print('==============================================')
 
         RnnAE_optimizer.zero_grad()
-
-        loss = loss_func(output.view(-1, dic_vocab_num), train_y.view(-1))
-        loss += loss_func(t_output.view(-1, 2), class_t)
-
         loss.backward()
         RnnAE_optimizer.step()
-
-        training_result.append([torch.max(t_output.view(-1, 2), 1)[1].data.numpy(),
-                                class_t.data.numpy()])
-    print(sum(item[0] == item[1] for item in training_result), len(training_result))
-
-    for sentence in test_inst:
-        train_x = train_y = Variable(torch.from_numpy(np.array(sentence[0])).long())
-        class_t = Variable(torch.from_numpy(np.array([sentence[1]], dtype=np.float)).long())
-
-        output, h_state = RnnAE.forward(train_x.view(1, -1))
-        t_output = RnnAE.categrate(h_state)
-
-        testing_result.append([torch.max(t_output.view(-1, 2), 1)[1].data.numpy(),
-                                class_t.data.numpy()])
-    print(sum(item[0] == item[1] for item in testing_result), len(testing_result))
-
-torch.save(RnnAE, 'RnnAE_trained')
-

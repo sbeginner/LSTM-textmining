@@ -2,7 +2,6 @@ import codecs
 import json
 import numpy as np
 from pathlib import Path
-import random
 
 
 # BOW-dict
@@ -21,7 +20,8 @@ def vocab_dict(instances, dict_url):
     # update the BOW-dict
     new_dictionary = combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow)
 
-    return new_dictionary, len(new_dictionary)
+    return new_dictionary, len(new_dictionary) + 1
+
 
 def new_instances_vocab(instances):
     vocab = set()
@@ -29,9 +29,10 @@ def new_instances_vocab(instances):
         vocab.update(instance.split())
     return vocab
 
+
 def combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow):
     if new_vocab:
-        vocab2Ind = {word: index + len(exist_vocab) for index, word in enumerate(new_vocab)}
+        vocab2Ind = {word: index + len(exist_vocab) + 1 for index, word in enumerate(new_vocab)}
         dictionary.update(vocab2Ind)
         dict_bow.seek(0)
         dict_bow.truncate()
@@ -42,5 +43,18 @@ def combine_vocab(new_vocab, exist_vocab, dictionary, dict_bow):
 
 # sentence: character(char) to index(int)
 def sentence_loader(instances, dict):
-    sentence_ind = [[dict[word] for word in instance.split()] for instance in instances]
-    return np.array(sentence_ind)
+    max_length = 10
+    sentence_list = []
+    sentence_len_list = []
+
+    for instance in instances:
+        sentence = np.zeros(max_length)
+        inst_seg = instance.split()
+        inst_seg_len = (max_length if len(inst_seg) >= max_length else len(inst_seg))
+        for ind, word in enumerate(inst_seg):
+            if ind >= max_length: break
+            sentence[ind] = dict[word]
+        sentence_list.append(sentence)
+        sentence_len_list.append(inst_seg_len)
+
+    return np.array(sentence_list), sentence_len_list
